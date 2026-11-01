@@ -1,0 +1,37 @@
+name: jala-sales-api
+
+services:
+  jala-sales-db:
+    container_name: jala-sales-db
+    image: bitnami/postgresql:16
+    restart: always
+    env_file:
+      - .env.docker
+    ports:
+      - 5432:5432
+    volumes:
+      - jala-sales-db-data:/bitnami/postgresql
+    networks:
+      - jala-sales-network
+
+  jala-sales-api:
+    container_name: jala-sales-api
+    image: registry.gitlab.com/jala-university1/cohort-1/oficial-pt-desenvolvimento-de-software-4-iso-223.ga.t2.24.m2/se-o-b/capybara-coders/jala-sales-api:${SEMVER}
+    env_file:
+      - .env.local
+    ports:
+      - 3333:3333
+    depends_on:
+      - jala-sales-db
+    networks:
+      - jala-sales-network
+
+
+networks:
+  jala-sales-network:
+    name: jala-sales-network
+    driver: bridge
+    external: true
+
+volumes:
+  jala-sales-db-data:

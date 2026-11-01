@@ -1,0 +1,21 @@
+meta {
+  name: Seller update
+  type: http
+  seq: 4
+}
+
+put {
+  url: {{BASE}}/seller/{{SELLER_ID}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{TOKEN}}
+}
+
+body:json {
+  {
+    "status": "approved"
+  }
+}

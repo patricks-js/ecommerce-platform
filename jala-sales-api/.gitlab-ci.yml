@@ -1,0 +1,223 @@
+stages:
+  - validate_playbooks
+  - build_and_test
+  - docker_build_push
+  - deploy
+  - deploy_run_container
+  - sonarqube_check
+  - acceptance_tests
+  - deploy_prod
+
+variables:
+  SEMVER: "DEV-2.2.1"
+  SEMVERUPDATED: "DEV-2.2.2"
+  NODE_VERSION: "20"
+  DOCKER_TLS_CERTDIR: ""
+  DOCKER_BUILDKIT: 1
+
+validate_playbooks:
+  stage: validate_playbooks
+  image: ansible/ansible:latest
+  before_script:
+    - pip install --break-system-packages ansible-lint
+    - export PATH=$PATH:~/.local/bin
+    - rm -rf node_modules/
+  script:
+    - ansible-playbook --syntax-check playbooks/docker.yml
+    - ansible-playbook --syntax-check playbooks/postgres.yml
+    - ansible-playbook --syntax-check playbooks/sonarqube.yml
+    - ansible-lint playbooks/docker.yml
+    - ansible-lint playbooks/postgres.yml
+    - ansible-lint playbooks/sonarqube.yml
+    - ansible-playbook -i playbooks/hosts playbooks/docker.yml --check
+    - ansible-playbook -i playbooks/hosts playbooks/postgres.yml --check
+    - ansible-playbook -i playbooks/hosts playbooks/sonarqube.yml --check
+  tags:
+    - ubuntu
+
+build_and_test:
+  stage: build_and_test
+  cache:
+    paths:
+      - node_modules/
+  script:
+    - npm install
+    - npm run build
+    - npm run test
+  tags:
+    - ubuntu
+
+docker_build_push:
+  stage: docker_build_push
+  image: docker:27.3.1
+  services:
+    - docker:dind
+  before_script:
+    - mkdir -p ./.resources
+    - echo "$QATU_FIRE_KEY_JSON" > ./.resources/.qatuFireKey.json
+    - mkdir -p ~/.docker/cli-plugins/
+    - curl -L https://github.com/docker/buildx/releases/download/v0.11.2/buildx-v0.11.2.linux-amd64 -o ~/.docker/cli-plugins/docker-buildx
+    - chmod +x ~/.docker/cli-plugins/docker-buildx
+  script:
+    - docker build -t $CI_REGISTRY_IMAGE:$SEMVER .
+    - echo $CI_JOB_TOKEN | docker login -u gitlab-ci-token --password-stdin $CI_REGISTRY
+    - docker push $CI_REGISTRY_IMAGE:$SEMVER
+    - SEMVERUPDATED=$(echo $SEMVER | awk -F. -v OFS=. '{$NF += 1; print}')
+    - SEMVERUPDATED=$(echo $SEMVERUPDATED | sed 's/DEV/LTS/')
+    - echo "SEMVERUPDATED=$SEMVERUPDATED" >> .env
+    - cat .env
+    - docker tag $CI_REGISTRY_IMAGE:$SEMVER $CI_REGISTRY_IMAGE:$SEMVERUPDATED
+    - docker push $CI_REGISTRY_IMAGE:$SEMVERUPDATED
+  artifacts:
+    paths:
+      - .env
+  only:
+    - main
+  tags:
+    - ubuntu
+
+deploy_blue:
+  stage: deploy
+  image: docker:27.3.1-dind-rootless
+  services:
+    - docker:dind
+  before_script:
+    - echo "$ENV_CONTENT" > .env.local
+  script:
+    - echo "Iniciando a implantação no ambiente Blue"
+
+    - docker network create jala-sales-network || echo "Rede 'jala-sales-network' já existe."
+
+    - |
+      # Tenta parar e remover o contêiner 'jala-sales-blue' se já existir
+      existing_container=$(docker ps -a -q -f name=jala-sales-blue)
+      if [ -n "$existing_container" ]; then
+        echo "Removendo contêiner Blue antigo..."
+        docker rm -f $existing_container || echo "Erro ao forçar remoção do contêiner Blue. Continuando..."
+      else
+        echo "Nenhum contêiner Blue antigo encontrado."
+      fi
+
+    - docker run -d --name jala-sales-blue --env-file .env.local --network jala-sales-network -p 3334:3333 $CI_REGISTRY_IMAGE:$SEMVER
+
+    - echo "Ambiente Blue implantado com sucesso!"
+  only:
+    - main
+  tags:
+    - ubuntu
+
+deploy_green:
+  stage: deploy
+  image: docker:27.3.1-dind-rootless
+  services:
+    - docker:dind
+  before_script:
+    - echo "$ENV_CONTENT" > .env.local
+  script:
+    - echo "Iniciando a troca de tráfego para o ambiente Green"
+
+    - |
+      # Tenta parar e remover o contêiner 'jala-sales-green' se já existir
+      existing_container=$(docker ps -a -q -f name=jala-sales-green)
+      if [ -n "$existing_container" ]; then
+        echo "Contêiner Green antigo encontrado. Removendo..."
+        docker rm -f $existing_container || echo "Erro ao forçar remoção do contêiner Green. Continuando..."
+      else
+        echo "Nenhum contêiner Green antigo encontrado."
+      fi
+
+    - docker run -d --name jala-sales-green --env-file .env.local --network jala-sales-network -p 3000:3000 $CI_REGISTRY_IMAGE:$SEMVER
+
+    - echo "Ambiente Green está agora ativo!"
+  only:
+    - main
+  when: manual
+  tags:
+    - ubuntu
+
+deploy_services:
+  stage: deploy
+  image: ansible/ansible:latest
+  script:
+    - ansible-playbook playbooks/postgres.yml
+    - ansible-playbook playbooks/sonarqube.yml
+  only:
+    - main
+  tags:
+    - ubuntu
+
+deploy_run_container:
+  stage: deploy
+  image: docker:latest
+  services:
+    - docker:dind
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    - source .env
+    - echo "Usando a nova versão SEMVERUPDATED=$SEMVERUPDATED"
+    - export SEMVERUPDATED=$SEMVERUPDATED
+    - docker-compose -f docker-compose.prod.yaml down || true
+    - docker-compose -f docker-compose.prod.yaml pull
+    - docker-compose -f docker-compose.prod.yaml up -d --build
+    - docker-compose -f docker-compose.prod.yaml ps
+  only:
+    - main
+  tags:
+    - ubuntu
+
+sonarqube_check:
+  stage: sonarqube_check
+  image: sonarsource/sonar-scanner-cli:latest
+  variables:
+    SONAR_USER_HOME: "${CI_PROJECT_DIR}/.sonar"
+    GIT_DEPTH: "0"
+  cache:
+    key: "${CI_JOB_NAME}"
+    paths:
+      - .sonar/cache
+  script:
+    - docker run -e SONAR_HOST_URL="${SONAR_HOST_URL}" -e SONAR_TOKEN="${SONAR_TOKEN}" -v ".:/usr/src" sonarsource/sonar-scanner-cli -X
+  allow_failure: true
+  tags:
+    - ubuntu
+
+acceptance_tests:
+  stage: acceptance_tests
+  image: curlimages/curl:latest
+  script:
+    - echo "Testing endpoint /products sorting with name asc"
+    - curl -X GET -i "http://localhost:3333/api/products?query=name&sort=asc" | grep "HTTP/1.1 200" || (echo "Failed /products sorting with name asc" && exit 1)
+    - echo "Testing endpoint /products/search"
+    - curl -X GET -i "http://localhost:3333/api/products/search?name=phone" | grep "HTTP/1.1 404" || (echo "Failed /products/search?name=phone" && exit 1)
+    - echo "Testing endpoint /products/prices"
+    - curl -X GET -i "http://localhost:3333/api/products/price?low_price=10&high_price=900" | grep "HTTP/1.1 200" || (echo "Failed /products/price?low_price=10&high_price=900" && exit 1)
+    - echo "Testing endpoint /products sorting with price asc"
+    - curl -X GET -i "http://localhost:3333/api/products?query=price&sort=asc" | grep "HTTP/1.1 200" || (echo "Failed /products sorting with price asc" && exit 1)
+    - echo "Testing endpoint /products sorting with price desc"
+    - curl -X GET -i "http://localhost:3333/api/products?query=price&sort=desc" | grep "HTTP/1.1 200" || (echo "Failed /products sorting with name desc" && exit 1)
+    - echo "Testing endpoint /products sorting with name desc"
+    - curl -X GET -i "http://localhost:3333/api/products?query=name&sort=desc" | grep "HTTP/1.1 200" || (echo "Failed /products sorting with name desc" && exit 1)
+    - echo "All tests passed successfully!"
+  tags:
+    - ubuntu
+
+deploy_to_production:
+  stage: deploy_prod
+  image: docker:latest
+  services:
+    - docker:dind
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    - source .env
+    - echo "Usando a nova versão SEMVERUPDATED=$SEMVERUPDATED"
+    - export SEMVERUPDATED=$SEMVERUPDATED
+    - docker compose -f docker-compose.prod.yaml down || true
+    - docker compose -f docker-compose.prod.yaml pull
+    - docker compose -f docker-compose.prod.yaml up -d --build
+    - docker compose -f docker-compose.prod.yaml ps
+  only:
+    - main
+  tags:
+    - capybarascoders-prod

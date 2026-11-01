@@ -1,0 +1,22 @@
+meta {
+  name: Create category
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{BASE}}/categories
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{TOKEN}}
+}
+
+body:json {
+  {
+    "name": "Smartphone",
+    "description": "A category by smartphones"
+  }
+}

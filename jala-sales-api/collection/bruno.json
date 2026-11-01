@@ -1,0 +1,6 @@
+{
+  "version": "1",
+  "name": "Jala Sales Collection",
+  "type": "collection",
+  "ignore": ["node_modules", ".git"]
+}

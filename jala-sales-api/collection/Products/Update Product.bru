@@ -1,0 +1,22 @@
+meta {
+  name: Update Product
+  type: http
+  seq: 2
+}
+
+put {
+  url: {{BASE}}/products/
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{TOKEN}}
+}
+
+body:json {
+  {
+    "stock": 46
+  }
+  
+}

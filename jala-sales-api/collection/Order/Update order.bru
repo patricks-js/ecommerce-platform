@@ -1,0 +1,21 @@
+meta {
+  name: Update order
+  type: http
+  seq: 4
+}
+
+put {
+  url: {{BASE}}/order/c95d7a93-0932-4335-9b1b-21e285b240dd
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{TOKEN}}
+}
+
+body:json {
+  {
+    "totalAmount":890
+  }
+}

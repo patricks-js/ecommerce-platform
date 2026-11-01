@@ -1,0 +1,23 @@
+meta {
+  name: Create order detail
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{BASE}}/order-detail
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{TOKEN}}
+}
+
+body:json {
+  {
+    "orderId": "c06c4830-5909-4669-a7a1-b9c497028769",
+    "productId": "2f5f8b5d-0271-4eab-95b5-b38885ae3e12",
+    "quantity": 5
+  }
+}

@@ -1,0 +1,22 @@
+meta {
+  name: Create Order
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{BASE}}/order/
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{TOKEN}}
+}
+
+body:json {
+  {
+    "customerId":"425d7b3f-8ca9-43fd-89c8-7523d12d8d8c",
+    "shippingAddress": "Rua 21 de janeiro - Rio de Janeiro"
+  }
+}

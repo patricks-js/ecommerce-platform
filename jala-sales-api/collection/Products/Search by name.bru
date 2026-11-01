@@ -1,0 +1,15 @@
+meta {
+  name: Search by name
+  type: http
+  seq: 7
+}
+
+get {
+  url: {{BASE}}/products/search?name=phone
+  body: none
+  auth: none
+}
+
+params:query {
+  name: phone
+}

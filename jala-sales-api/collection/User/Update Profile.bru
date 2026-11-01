@@ -1,0 +1,23 @@
+meta {
+  name: Update Profile
+  type: http
+  seq: 4
+}
+
+put {
+  url: {{BASE}}/users/profile
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI3NGZkODAyMi1hYjUxLTRlMjMtOWEwMy1lZDgyZjNkZTFhN2YiLCJlbWFpbCI6InBhdHJpY2tAZ21haWwuY29tIiwicm9sZSI6ImN1c3RvbWVyIiwiaXNzIjoic2FsZXMuamFsYS5hcHAiLCJpYXQiOjE3MzI2NDk0MjAsImV4cCI6MTczMjY0OTU0MH0.GBTTH8JHAg0y-a9RLQj7tpXuUPWvdUjeTeYrQzTxky0
+}
+
+body:json {
+  {
+    "name": "Lucas Patrick",
+    "email": "patrick@gmail.com",
+    "image": "https://ewbwvoogznsoyxtqhffk.supabase.co/storage/v1/object/public/profile-image/08f75y37g7r8.jpg"
+  }
+}

@@ -1,0 +1,1 @@
+ALTER TABLE "tb_sessions" ALTER COLUMN "provider" SET DEFAULT 'credentials';

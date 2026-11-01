@@ -1,0 +1,41 @@
+---
+- name: Deploy SonarQube with Ansible and Docker
+  hosts: localhost
+  become: true
+  vars:
+    sonar_docker_image: "sonarqube:latest"
+    sonar_postgres_host: "postgres"
+    sonar_postgres_port: 5432
+    sonar_postgres_user: "admin"
+    sonar_postgres_password: "password"
+    sonar_postgres_db: "sonar"
+    sonar_port: 9000
+
+  tasks:
+    - name: Run SonarQube container
+      community.docker.docker_container:
+        name: sonarqube
+        image: "{{ sonar_docker_image }}"
+        networks:
+          - name: ansible_network
+        state: started
+        restart_policy: always
+        ports:
+          - "{{ sonar_port }}:9000"
+        env:
+          SONAR_JDBC_URL: "jdbc:postgresql://{{ sonar_postgres_host }}:{{ sonar_postgres_port }}/{{ sonar_postgres_db }}"
+          SONAR_JDBC_USERNAME: "{{ sonar_postgres_user }}"
+          SONAR_JDBC_PASSWORD: "{{ sonar_postgres_password }}"
+        volumes:
+          - sonarqube_data:/opt/sonarqube/data
+          - sonarqube_logs:/opt/sonarqube/logs
+          - sonarqube_extensions:/opt/sonarqube/extensions
+
+    - name: Create Docker volumes for SonarQube
+      community.docker.docker_volume:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - sonarqube_data
+        - sonarqube_logs
+        - sonarqube_extensions

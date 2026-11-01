@@ -1,0 +1,123 @@
+stages:
+  - lint_build_test
+  - build_push_image
+  - deploy
+  - quality_gates
+  - sonarqube_check
+
+variables:
+  SEMVER: "DEV-2.0.0"
+  NODE_VERSION: "20"
+  DOCKER_BUILDKIT: 1
+
+lint_build_test:
+  stage: lint_build_test
+  script:
+    - npm install
+    - npm run lint
+    - npm run test
+  cache:
+    paths:
+      - node_modules/
+  only:
+    - main
+  tags:
+    - ubuntu
+
+quality_gates:
+  stage: quality_gates
+  image: sonarsource/sonar-scanner-cli:latest
+  script:
+    - docker run -e SONAR_HOST_URL="${SONAR_HOST_URL}" -e SONAR_TOKEN="${SONAR_TOKEN}" -v ".:/usr/src" sonarsource/sonar-scanner-cli
+  only:
+    - main
+  tags:
+    - ubuntu
+
+sonarqube_check:
+  stage: sonarqube_check
+  image: sonarsource/sonar-scanner-cli:latest
+  variables:
+    SONAR_USER_HOME: "${CI_PROJECT_DIR}/.sonar"
+    GIT_DEPTH: "0"
+  cache:
+    key: "${CI_JOB_NAME}"
+    paths:
+      - .sonar/cache
+  script:
+    - docker run -e SONAR_HOST_URL="${SONAR_HOST_URL}" -e SONAR_TOKEN="${SONAR_TOKEN}" -v ".:/usr/src" sonarsource/sonar-scanner-cli -X
+  allow_failure: true
+  only:
+    - main
+
+build_push_image:
+  stage: build_push_image
+  image: docker:27.3.1-dind-rootless
+  services:
+    - docker:dind
+  before_script:
+    - mkdir -p ./.resources
+    - echo "$QATU_FIRE_KEY_JSON" > ./.resources/.qatuFireKey.json
+  script:
+    - docker build -t $CI_REGISTRY_IMAGE:$SEMVER .
+    - echo $CI_JOB_TOKEN | docker login -u gitlab-ci-token --password-stdin $CI_REGISTRY
+    - docker push $CI_REGISTRY_IMAGE:$SEMVER
+  only:
+    - main
+  tags:
+    - capybarascoders-prod
+
+deploy_blue:
+  stage: deploy
+  image: docker:27.3.1-dind-rootless
+  services:
+    - docker:dind
+  variables:
+    DOCKER_TLS_CERTDIR: ""
+  before_script:
+    - echo "$ENV_CONTENT" > .env.local
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
+  script:
+    - echo "Iniciando a implantação no ambiente Blue"
+    - docker network create jala-sales-network || echo "Rede 'jala-sales-network' já existe."
+    - |
+      if docker ps -a | grep -q 'jala-sales-blue'; then
+        echo "Removendo contêiner Blue antigo..."
+        docker rm -f jala-sales-blue || echo "Erro ao forçar remoção do contêiner Blue. Continuando..."
+      else
+        echo "Nenhum contêiner Blue antigo encontrado."
+      fi
+    - docker run -d --name jala-sales-blue --env-file .env.local --network jala-sales-network -p 8081:8080 "$CI_REGISTRY_IMAGE:$SEMVER"
+    - echo "Ambiente Blue implantado com sucesso!"
+  only:
+    - main
+  tags:
+    - capybarascoders-prod
+
+deploy_green:
+  stage: deploy
+  image: docker:27.3.1-dind-rootless
+  services:
+    - docker:dind
+  variables:
+    DOCKER_TLS_CERTDIR: ""
+  before_script:
+    - echo "$ENV_CONTENT" > .env.local
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
+  script:
+    - echo "Iniciando a troca de tráfego para o ambiente Green"
+    - |
+      if docker ps -a | grep -q 'jala-sales-green'; then
+        docker stop jala-sales-green
+        docker rm jala-sales-green
+        echo "Contêiner Green antigo parado e removido."
+      else
+        echo "Nenhum contêiner Green antigo encontrado."
+      fi
+    - docker run -d --name jala-sales-green --env-file .env.local --network jala-sales-network -p 80:80 "$CI_REGISTRY_IMAGE:$SEMVER"
+    - echo "Ambiente Green está agora ativo!"
+  only:
+    - main
+  tags:
+    - capybarascoders-prod
+  when: manual

@@ -1,0 +1,15 @@
+meta {
+  name: Get all categories
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{BASE}}/categories/
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{TOKEN}}
+}

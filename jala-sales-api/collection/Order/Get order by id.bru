@@ -1,0 +1,15 @@
+meta {
+  name: Get order by id
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{BASE}}/order/c06c4830-5909-4669-a7a1-b9c497028769
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{TOKEN}}
+}

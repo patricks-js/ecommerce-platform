@@ -1,0 +1,17 @@
+# Secrets — never commit real env files or private keys
+.env
+.env.local
+.env.docker
+.env.*.local
+*.key
+*.pem
+**/nginx/certs/
+
+# Dependencies & build output
+node_modules/
+.next/
+dist/
+coverage/
+
+# OS / editor
+.DS_Store

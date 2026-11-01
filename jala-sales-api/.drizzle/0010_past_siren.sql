@@ -1,0 +1,1 @@
+ALTER TABLE "tb_users" RENAME COLUMN "image_url" TO "image";

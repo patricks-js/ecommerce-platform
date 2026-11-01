@@ -1,0 +1,16 @@
+meta {
+  name: Sort Products
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{BASE}}/products?query=price&sort=asc
+  body: none
+  auth: none
+}
+
+params:query {
+  query: price
+  sort: asc
+}

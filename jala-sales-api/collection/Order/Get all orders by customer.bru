@@ -1,0 +1,15 @@
+meta {
+  name: Get all orders by customer
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{BASE}}/order
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{TOKEN}}
+}

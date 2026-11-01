@@ -1,0 +1,16 @@
+meta {
+  name: Search by price
+  type: http
+  seq: 9
+}
+
+get {
+  url: {{BASE}}/products/price?low_price=10&high_price=900
+  body: none
+  auth: none
+}
+
+params:query {
+  low_price: 10
+  high_price: 900
+}

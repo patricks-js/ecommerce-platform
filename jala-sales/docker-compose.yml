@@ -1,0 +1,36 @@
+name: jala-sales-web
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: jala-sales-web
+    networks:
+      - jala-sales-network
+    ports:
+      - 3001:3001
+    environment:
+      - NODE_ENV=production
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  nginx-server:
+    image: nginx:latest
+    container_name: jala-sales-nginx-server
+    ports:
+      - 443:443
+    networks:
+      - jala-sales-network
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
+    depends_on:
+      - web
+
+networks:
+  jala-sales-network:
+    driver: bridge

@@ -1,0 +1,28 @@
+meta {
+  name: Create Produtc
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{BASE}}/products
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{TOKEN}}
+}
+
+body:json {
+  {
+    "name": "Smartphone Samsung Galaxy S24 Ultra 5G",
+    "description": "Smartphone de última geração com 256GB de armazenamento interno, 12GB de RAM, tela Dynamic AMOLED 2X de 6,8 polegadas e câmera quádrupla de 200MP",
+    "price": 6579.06,
+    "stock": 20,
+    "categoryId": "j2u2pc4iiev2o60ll8mjw9xt",
+    "sellerId": "{{SELLER_ID}}",
+    "image": "http://example.com/image.jpg"
+  }
+  
+}

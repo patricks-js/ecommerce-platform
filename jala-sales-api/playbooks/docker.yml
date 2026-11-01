@@ -1,0 +1,67 @@
+---
+- name: Install Docker Engine on Ubuntu Server
+  hosts: all
+  become: true
+
+  tasks:
+    - name: Remover pacotes conflitantes (containerd)
+      ansible.builtin.apt:
+        name: containerd
+        state: absent
+
+    - name: Remove pacotes "held" (pacotes travados)
+      ansible.builtin.shell: |
+        set -o pipefail
+        dpkg --get-selections | grep hold | cut -f1 | xargs -n1 apt-mark unhold
+      changed_when: false  # Esta tarefa não muda o estado se não houver pacotes "held"
+      register: unhold_result
+
+    - name: Corrigir pacotes quebrados
+      ansible.builtin.shell: |
+        set -o pipefail
+        apt-get install -f -y
+      changed_when: false  # Esta tarefa não muda o estado se não houver pacotes quebrados
+      register: fix_packages
+
+    - name: Verificar se o repositório do Docker já está configurado
+      ansible.builtin.stat:
+        path: /etc/apt/sources.list.d/docker.list
+      register: docker_repo
+
+    - name: Adicionar chave GPG do Docker
+      ansible.builtin.apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+
+    - name: Adicionar repositório Docker se ele não existir
+      ansible.builtin.apt_repository:
+        repo: "deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+        state: present
+      when: not docker_repo.stat.exists
+
+    - name: Atualizar lista de pacotes
+      ansible.builtin.apt:
+        update_cache: true  # Substituído "yes" por "true" para conformidade YAML
+
+    - name: Verificar a versão do Docker
+      ansible.builtin.command: docker --version
+      register: docker_version
+      ignore_errors: true
+      changed_when: false  # Essa tarefa não muda o estado, mesmo que o docker não esteja presente
+
+    - name: Instalar Docker CE, CLI, containerd.io, buildx e compose-plugin se não estiver presente
+      ansible.builtin.apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-buildx-plugin
+          - docker-compose-plugin
+        state: present
+      when: docker_version.failed  # Instala apenas se o Docker não estiver presente
+
+    - name: Ativar e iniciar o serviço Docker
+      ansible.builtin.service:
+        name: docker
+        state: started
+        enabled: true

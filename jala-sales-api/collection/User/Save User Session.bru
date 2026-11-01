@@ -1,0 +1,21 @@
+meta {
+  name: Save User Session
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{BASE}}/users/sessions
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: 
+}
+
+body:json {
+  {
+    "provider": "google"
+  }
+}

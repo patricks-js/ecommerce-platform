@@ -1,0 +1,15 @@
+meta {
+  name: Get Product By Seller
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{BASE}}/products/seller/2c1516c7-cc85-4e93-8749-977b4a830356
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{TOKEN}}
+}
